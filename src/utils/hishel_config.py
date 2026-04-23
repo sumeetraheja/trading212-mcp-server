@@ -1,6 +1,9 @@
 import hishel
 
-storage = hishel.FileStorage(ttl=300)
+default_storage = hishel.FileStorage(ttl=300)
+
+# Backwards-compatible alias; prefer ``default_storage`` in new code.
+storage = default_storage
 
 # All the specification configs
 controller = hishel.Controller(

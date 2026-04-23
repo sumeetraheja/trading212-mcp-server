@@ -192,3 +192,19 @@ def test_raises_helpful_error_when_accounts_key_missing(MockClient, tmp_path):
     from accounts import AccountRegistry
     with pytest.raises(ValueError, match="missing required key 'accounts'"):
         AccountRegistry(config_path=str(p))
+
+
+@patch("accounts.Trading212Client")
+def test_registry_passes_distinct_cache_dirs_per_account(MockClient, tmp_path, monkeypatch):
+    monkeypatch.setenv("TRADING212_CACHE_ROOT", str(tmp_path / "cache"))
+    path = make_config(tmp_path, [
+        {"name": "sumeet", "api_key": "k1", "api_secret": "s1", "environment": "live"},
+        {"name": "wife",   "api_key": "k2", "api_secret": "s2", "environment": "live"},
+    ], default="sumeet")
+
+    from accounts import AccountRegistry
+    AccountRegistry(config_path=path)
+
+    cache_dirs = {call.kwargs["cache_dir"] for call in MockClient.call_args_list}
+    assert len(cache_dirs) == 2
+    assert all(str(tmp_path / "cache") in d for d in cache_dirs)

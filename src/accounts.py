@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from utils.client import Trading212Client
 
 
@@ -24,12 +25,20 @@ class AccountRegistry:
                     f"accounts.json at '{config_path}' is missing required key '{required_key}'."
                 )
 
+        cache_root = Path(
+            os.getenv("TRADING212_CACHE_ROOT")
+            or (Path.home() / ".trading212" / "cache")
+        )
+
         self._default = config["default"]
         for account in config["accounts"]:
+            account_cache_dir = cache_root / account["name"]
+            account_cache_dir.mkdir(parents=True, exist_ok=True)
             self._clients[account["name"]] = Trading212Client(
                 api_key=account["api_key"],
                 api_secret=account["api_secret"],
                 environment=account["environment"],
+                cache_dir=str(account_cache_dir),
             )
 
     def _load_from_env(self) -> None:

@@ -2,11 +2,12 @@ import base64
 import httpx
 import os
 import hishel
+from pathlib import Path
 from typing import Optional, List, Any
 
 from models import *
 
-from utils.hishel_config import storage, controller
+from utils.hishel_config import default_storage, controller
 
 
 class Trading212Client:
@@ -16,6 +17,7 @@ class Trading212Client:
         api_secret: str = None,
         environment: str = None,
         version: str = "v0",
+        cache_dir: str | None = None,
     ):
         api_key = api_key or os.getenv("TRADING212_API_KEY")
         api_secret = api_secret or os.getenv("TRADING212_API_SECRET")
@@ -36,6 +38,17 @@ class Trading212Client:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+
+        # hishel keys cache entries on URL + method + Vary headers, NOT on the
+        # Authorization header. Sharing one storage across accounts would leak
+        # responses between them. Per-account ``cache_dir`` keeps each account's
+        # cache isolated on disk.
+        if cache_dir is not None:
+            cache_path = Path(cache_dir)
+            cache_path.mkdir(parents=True, exist_ok=True)
+            storage = hishel.FileStorage(base_path=cache_path, ttl=300)
+        else:
+            storage = default_storage
 
         self.client = hishel.CacheClient(
             base_url=base_url,
