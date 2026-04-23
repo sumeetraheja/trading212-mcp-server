@@ -205,6 +205,7 @@ def test_registry_passes_distinct_cache_dirs_per_account(MockClient, tmp_path, m
     from accounts import AccountRegistry
     AccountRegistry(config_path=path)
 
-    cache_dirs = {call.kwargs["cache_dir"] for call in MockClient.call_args_list}
+    cache_dirs = [call.kwargs["cache_dir"] for call in MockClient.call_args_list]
+    assert len(cache_dirs) == len(set(cache_dirs))  # all distinct
     assert len(cache_dirs) == 2
     assert all(str(tmp_path / "cache") in d for d in cache_dirs)

@@ -19,6 +19,14 @@ class Trading212Client:
         version: str = "v0",
         cache_dir: str | None = None,
     ):
+        """Construct a Trading212 API client.
+
+        Pass ``cache_dir`` to isolate this client's HTTP cache from other
+        clients -- required when multiple clients share this process. Omit
+        only when running a single account; callers that instantiate
+        multiple clients without ``cache_dir`` will share cached responses
+        across accounts.
+        """
         api_key = api_key or os.getenv("TRADING212_API_KEY")
         api_secret = api_secret or os.getenv("TRADING212_API_SECRET")
         environment = environment or os.getenv("ENVIRONMENT") or Environment.DEMO.value

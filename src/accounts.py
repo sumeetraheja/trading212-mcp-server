@@ -33,7 +33,6 @@ class AccountRegistry:
         self._default = config["default"]
         for account in config["accounts"]:
             account_cache_dir = cache_root / account["name"]
-            account_cache_dir.mkdir(parents=True, exist_ok=True)
             self._clients[account["name"]] = Trading212Client(
                 api_key=account["api_key"],
                 api_secret=account["api_secret"],
