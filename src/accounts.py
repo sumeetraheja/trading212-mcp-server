@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
@@ -17,11 +17,11 @@ class AccountConfig(BaseModel):
 
 class AccountsFile(BaseModel):
     default: str = Field(min_length=1)
-    accounts: List[AccountConfig] = Field(min_length=1)
+    accounts: list[AccountConfig] = Field(min_length=1)
 
     @field_validator("accounts")
     @classmethod
-    def _no_duplicate_names(cls, v: List[AccountConfig]) -> List[AccountConfig]:
+    def _no_duplicate_names(cls, v: list[AccountConfig]) -> list[AccountConfig]:
         seen = set()
         for a in v:
             if a.name in seen:
@@ -64,8 +64,12 @@ class AccountRegistry:
         try:
             validated = AccountsFile.model_validate(data)
         except ValidationError as e:
+            details = "; ".join(
+                f"{' -> '.join(str(p) for p in err['loc'])}: {err['msg']}"
+                for err in e.errors(include_url=False)
+            )
             raise ValueError(
-                f"invalid accounts file {config_path!r}: {e}"
+                f"invalid accounts file {config_path!r}: {details}"
             ) from e
 
         cache_root = Path(

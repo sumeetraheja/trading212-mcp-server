@@ -158,9 +158,8 @@ def test_raises_when_no_config_and_no_env_vars():
 @patch("accounts.Trading212Client")
 def test_load_with_bad_default_raises_at_load_time(MockClient, tmp_path):
     # default names an account that doesn't exist in the accounts list
-    import json as _json
     p = tmp_path / "accounts.json"
-    p.write_text(_json.dumps({
+    p.write_text(json.dumps({
         "default": "typo",
         "accounts": [
             {"name": "sumeet", "api_key": "k", "api_secret": "s", "environment": "live"},
@@ -178,7 +177,7 @@ def test_raises_helpful_error_when_default_key_missing(MockClient, tmp_path):
     p.write_text(json.dumps({"accounts": []}))
 
     from accounts import AccountRegistry
-    with pytest.raises(ValueError, match="default"):
+    with pytest.raises(ValueError, match=r"default.*Field required|Field required.*default"):
         AccountRegistry(config_path=str(p))
 
 
@@ -188,7 +187,7 @@ def test_raises_helpful_error_when_accounts_key_missing(MockClient, tmp_path):
     p.write_text(json.dumps({"default": "sumeet"}))
 
     from accounts import AccountRegistry
-    with pytest.raises(ValueError, match="accounts"):
+    with pytest.raises(ValueError, match=r"accounts.*Field required|Field required.*accounts"):
         AccountRegistry(config_path=str(p))
 
 
@@ -228,15 +227,14 @@ def test_unknown_environment_rejected_at_load(MockClient, tmp_path):
     ], default="sumeet")
 
     from accounts import AccountRegistry
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"staging|environment|Literal|literal"):
         AccountRegistry(config_path=path)
 
 
 @patch("accounts.Trading212Client")
 def test_empty_accounts_list_rejected_at_load(MockClient, tmp_path):
-    import json as _json
     p = tmp_path / "accounts.json"
-    p.write_text(_json.dumps({"default": "sumeet", "accounts": []}))
+    p.write_text(json.dumps({"default": "sumeet", "accounts": []}))
 
     from accounts import AccountRegistry
     with pytest.raises(ValueError):
@@ -245,9 +243,8 @@ def test_empty_accounts_list_rejected_at_load(MockClient, tmp_path):
 
 @patch("accounts.Trading212Client")
 def test_missing_per_account_field_rejected_at_load(MockClient, tmp_path):
-    import json as _json
     p = tmp_path / "accounts.json"
-    p.write_text(_json.dumps({
+    p.write_text(json.dumps({
         "default": "sumeet",
         "accounts": [{"name": "sumeet", "api_key": "k", "environment": "live"}],
     }))
