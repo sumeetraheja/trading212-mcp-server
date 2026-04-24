@@ -148,6 +148,72 @@ cp .env.example .env
 # Edit .env with your configuration
 ```
 
+### Multi-account setup
+
+The server can hold credentials for multiple Trading 212 accounts simultaneously and route each tool call to a chosen account.
+
+Copy `accounts.json.example` to `accounts.json` at the repo root (or point at a different path with the `ACCOUNTS_CONFIG` env var) and fill in your keys:
+
+```json
+{
+  "default": "personal",
+  "accounts": [
+    {
+      "name": "personal",
+      "api_key": "...",
+      "api_secret": "...",
+      "environment": "live"
+    },
+    {
+      "name": "family",
+      "api_key": "...",
+      "api_secret": "...",
+      "environment": "live"
+    }
+  ]
+}
+```
+
+`accounts.json` holds live API keys and is gitignored. **Do not commit it.** If a key is ever exposed, rotate it from the Trading 212 dashboard.
+
+Configuration is validated with pydantic on startup: account names must be unique, `environment` must be `live` or `demo`, `default` must reference a real account, and the list must be non-empty. Misconfiguration fails loud at startup.
+
+#### Using accounts from tools
+
+Every tool accepts an optional `account=` argument.
+
+- **Read-only tools** (`fetch_account_cash`, `fetch_account_info`, `fetch_pies`, `fetch_all_orders`, `fetch_all_open_positions`, `fetch_historical_order_data`, `fetch_paid_out_dividends`, `fetch_exports_list`, `fetch_transaction_list`, `fetch_order`, `fetch_a_pie`, `fetch_open_position_by_ticker`, `search_specific_position_by_ticker`) default to the `default` account when `account=` is omitted. They also accept `account="all"` to fan out to every configured account, or `account=["a","b"]` for a subset — the result is a list of `{account, data}` entries.
+- **Write tools** (`place_market_order`, `place_limit_order`, `place_stop_order`, `place_stop_limit_order`, `cancel_order`, `create_pie`, `update_pie`, `delete_pie`, `duplicate_pie`, `request_csv_export`) **require** `account="<name>"` and raise if it is missing — this prevents an accidental order against the wrong account.
+- **Market-wide tools** (`search_instrument`, `search_exchange`) accept a single account name or `None` but reject multi-account input — their results don't vary by account.
+
+Use the `list_accounts` tool to discover configured account names and the default.
+
+#### Account-prefixed MCP resources
+
+Alongside the existing `trading212://account/...` URIs (which return the default account), there are account-prefixed variants under `trading212://accounts/{account}/...`:
+
+```
+trading212://accounts/{account}/info
+trading212://accounts/{account}/cash
+trading212://accounts/{account}/portfolio
+trading212://accounts/{account}/portfolio/{ticker}
+trading212://accounts/{account}/orders
+trading212://accounts/{account}/orders/{order_id}
+trading212://accounts/{account}/pies
+trading212://accounts/{account}/pies/{pie_id}
+trading212://accounts/{account}/history/exports
+```
+
+`trading212://instruments` and `trading212://exchanges` are market-wide and have no prefixed form.
+
+#### Cache isolation
+
+Each account gets its own hishel cache directory at `~/.trading212/cache/<account>/` — without this, hishel's URL-based cache keys would cause one account's responses to be returned for another. Override the cache root with the `TRADING212_CACHE_ROOT` env var if you want cache storage somewhere else.
+
+#### Fallback to single-account env vars
+
+If no `accounts.json` is found and `ACCOUNTS_CONFIG` isn't set, the server falls back to the existing single-account env-var configuration (`TRADING212_API_KEY`, `TRADING212_API_SECRET`, `ENVIRONMENT`) and exposes the sole account under the name `"default"`. Existing single-account deployments keep working unchanged.
+
 ### Using Claude Desktop
 
 #### Installing via Docker
