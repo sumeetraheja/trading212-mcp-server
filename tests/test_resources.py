@@ -18,7 +18,7 @@ def _make_config(tmp_path):
 
 def _reload_resources():
     """Force a fresh import of mcp_server and resources so they re-read env."""
-    for mod in ("resources", "mcp_server"):
+    for mod in ("resources", "mcp_server", "accounts", "config"):
         sys.modules.pop(mod, None)
     import resources
     return resources
@@ -38,7 +38,7 @@ def _reload_resources():
         ("get_reports_for", "get_reports", {}),
     ],
 )
-@patch("accounts.Trading212Client")
+@patch("utils.client.Trading212Client")
 def test_prefixed_resource_routes_to_named_account(
     MockClient, resource_func_name, client_method, kwargs, tmp_path, monkeypatch
 ):
@@ -57,15 +57,12 @@ def test_prefixed_resource_routes_to_named_account(
 
     assert result == sentinel
     # The correct method on mock_b was called once with the forwarded args
-    getattr(mock_b, client_method).assert_called_once()
-    call_args = getattr(mock_b, client_method).call_args
-    # Positional args should match kwargs values (in dict insertion order)
-    assert list(call_args.args) == list(kwargs.values())
+    getattr(mock_b, client_method).assert_called_once_with(**kwargs)
     # Account "a" was not touched for this call
     getattr(mock_a, client_method).assert_not_called()
 
 
-@patch("accounts.Trading212Client")
+@patch("utils.client.Trading212Client")
 def test_prefixed_resource_unknown_account_raises(MockClient, tmp_path, monkeypatch):
     MockClient.side_effect = [MagicMock(), MagicMock()]
     monkeypatch.setenv("ACCOUNTS_CONFIG", _make_config(tmp_path))
