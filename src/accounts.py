@@ -1,7 +1,42 @@
 import json
 import os
 from pathlib import Path
+from typing import List, Literal
+
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+
 from utils.client import Trading212Client
+
+
+class AccountConfig(BaseModel):
+    name: str = Field(min_length=1)
+    api_key: str = Field(min_length=1)
+    api_secret: str = Field(min_length=1)
+    environment: Literal["live", "demo"]
+
+
+class AccountsFile(BaseModel):
+    default: str = Field(min_length=1)
+    accounts: List[AccountConfig] = Field(min_length=1)
+
+    @field_validator("accounts")
+    @classmethod
+    def _no_duplicate_names(cls, v: List[AccountConfig]) -> List[AccountConfig]:
+        seen = set()
+        for a in v:
+            if a.name in seen:
+                raise ValueError(f"duplicate account name: {a.name!r}")
+            seen.add(a.name)
+        return v
+
+    @model_validator(mode="after")
+    def _default_must_exist(self) -> "AccountsFile":
+        names = {a.name for a in self.accounts}
+        if self.default not in names:
+            raise ValueError(
+                f"default account {self.default!r} not found in accounts (known: {sorted(names)})"
+            )
+        return self
 
 
 class AccountRegistry:
@@ -17,26 +52,34 @@ class AccountRegistry:
 
     def _load_from_file(self, config_path: str) -> None:
         with open(config_path) as f:
-            config = json.load(f)
+            raw = f.read()
 
-        for required_key in ("default", "accounts"):
-            if required_key not in config:
-                raise ValueError(
-                    f"accounts.json at '{config_path}' is missing required key '{required_key}'."
-                )
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"accounts file at {config_path!r} is not valid JSON: {e}"
+            ) from e
+
+        try:
+            validated = AccountsFile.model_validate(data)
+        except ValidationError as e:
+            raise ValueError(
+                f"invalid accounts file {config_path!r}: {e}"
+            ) from e
 
         cache_root = Path(
             os.getenv("TRADING212_CACHE_ROOT")
             or (Path.home() / ".trading212" / "cache")
         )
 
-        self._default = config["default"]
-        for account in config["accounts"]:
-            account_cache_dir = cache_root / account["name"]
-            self._clients[account["name"]] = Trading212Client(
-                api_key=account["api_key"],
-                api_secret=account["api_secret"],
-                environment=account["environment"],
+        self._default = validated.default
+        for account in validated.accounts:
+            account_cache_dir = cache_root / account.name
+            self._clients[account.name] = Trading212Client(
+                api_key=account.api_key,
+                api_secret=account.api_secret,
+                environment=account.environment,
                 cache_dir=str(account_cache_dir),
             )
 

@@ -156,7 +156,7 @@ def test_raises_when_no_config_and_no_env_vars():
 
 
 @patch("accounts.Trading212Client")
-def test_resolve_none_with_bad_default_raises_helpful_error(MockClient, tmp_path):
+def test_load_with_bad_default_raises_at_load_time(MockClient, tmp_path):
     # default names an account that doesn't exist in the accounts list
     import json as _json
     p = tmp_path / "accounts.json"
@@ -168,10 +168,8 @@ def test_resolve_none_with_bad_default_raises_helpful_error(MockClient, tmp_path
     }))
 
     from accounts import AccountRegistry
-    registry = AccountRegistry(config_path=str(p))
-
-    with pytest.raises(ValueError, match="Account 'typo' not found"):
-        registry.resolve(None)
+    with pytest.raises(ValueError, match="default"):
+        AccountRegistry(config_path=str(p))
 
 
 @patch("accounts.Trading212Client")
@@ -180,7 +178,7 @@ def test_raises_helpful_error_when_default_key_missing(MockClient, tmp_path):
     p.write_text(json.dumps({"accounts": []}))
 
     from accounts import AccountRegistry
-    with pytest.raises(ValueError, match="missing required key 'default'"):
+    with pytest.raises(ValueError, match="default"):
         AccountRegistry(config_path=str(p))
 
 
@@ -190,7 +188,7 @@ def test_raises_helpful_error_when_accounts_key_missing(MockClient, tmp_path):
     p.write_text(json.dumps({"default": "sumeet"}))
 
     from accounts import AccountRegistry
-    with pytest.raises(ValueError, match="missing required key 'accounts'"):
+    with pytest.raises(ValueError, match="accounts"):
         AccountRegistry(config_path=str(p))
 
 
@@ -209,3 +207,61 @@ def test_registry_passes_distinct_cache_dirs_per_account(MockClient, tmp_path, m
     assert len(cache_dirs) == len(set(cache_dirs))  # all distinct
     assert len(cache_dirs) == 2
     assert all(str(tmp_path / "cache") in d for d in cache_dirs)
+
+
+@patch("accounts.Trading212Client")
+def test_duplicate_account_names_rejected_at_load(MockClient, tmp_path):
+    path = make_config(tmp_path, [
+        {"name": "sumeet", "api_key": "k1", "api_secret": "s1", "environment": "live"},
+        {"name": "sumeet", "api_key": "k2", "api_secret": "s2", "environment": "live"},
+    ], default="sumeet")
+
+    from accounts import AccountRegistry
+    with pytest.raises(ValueError, match="duplicate"):
+        AccountRegistry(config_path=path)
+
+
+@patch("accounts.Trading212Client")
+def test_unknown_environment_rejected_at_load(MockClient, tmp_path):
+    path = make_config(tmp_path, [
+        {"name": "sumeet", "api_key": "k", "api_secret": "s", "environment": "staging"},
+    ], default="sumeet")
+
+    from accounts import AccountRegistry
+    with pytest.raises(ValueError):
+        AccountRegistry(config_path=path)
+
+
+@patch("accounts.Trading212Client")
+def test_empty_accounts_list_rejected_at_load(MockClient, tmp_path):
+    import json as _json
+    p = tmp_path / "accounts.json"
+    p.write_text(_json.dumps({"default": "sumeet", "accounts": []}))
+
+    from accounts import AccountRegistry
+    with pytest.raises(ValueError):
+        AccountRegistry(config_path=str(p))
+
+
+@patch("accounts.Trading212Client")
+def test_missing_per_account_field_rejected_at_load(MockClient, tmp_path):
+    import json as _json
+    p = tmp_path / "accounts.json"
+    p.write_text(_json.dumps({
+        "default": "sumeet",
+        "accounts": [{"name": "sumeet", "api_key": "k", "environment": "live"}],
+    }))
+
+    from accounts import AccountRegistry
+    with pytest.raises(ValueError):
+        AccountRegistry(config_path=str(p))
+
+
+@patch("accounts.Trading212Client")
+def test_invalid_json_rejected_at_load(MockClient, tmp_path):
+    p = tmp_path / "accounts.json"
+    p.write_text("{not json")
+
+    from accounts import AccountRegistry
+    with pytest.raises(ValueError, match="not valid JSON"):
+        AccountRegistry(config_path=str(p))
